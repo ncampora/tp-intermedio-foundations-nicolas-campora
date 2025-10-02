@@ -39,10 +39,10 @@ queries = {
         ORDER BY avg_duration DESC;
     """,
     "Top 10 películas con más votos": """
-        SELECT title, vote, rating
+        SELECT title, votes, rating
         FROM movies
         WHERE votes IS NOT NULL
-        ORDER BY botes DESC
+        ORDER BY votes DESC
         LIMIT 10;
     """
 }
