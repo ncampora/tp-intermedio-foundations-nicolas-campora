@@ -1,30 +1,33 @@
 import pandas as pd
 import psycopg2
+import os
 
-DATA_PATH="data/imdb_top_1000.csv"
+DATA_PATH = os.getenv("DATA_PATH", "/data/imdb_top_1000.csv")
 
-# Leer CS
+# Leer CSV
 df = pd.read_csv(DATA_PATH)
 
-# Limpiar y transformar
-df = df.rename (columns={
+# Renombrar columnas para que coincidan con la tabla
+df = df.rename(columns={
     "Series_Title": "title",
     "Released_Year": "year",
     "Genre": "genre",
     "Director": "director",
-    "Runtime": "runtime",
+    "Runtime": "runtime_minutes",
     "IMDB_Rating": "rating",
     "No_of_Votes": "votes"
 })
 
-# Convertir runtime a entero
+# Convertir runtime "142 min" → 142
 def parse_runtime(runtime_str):
     try:
-        return int(runtime_str.split()[0])
+        return int(str(runtime_str).split()[0])
     except:
         return None
 
-# onectar a PostgreSQL
+df["runtime_minutes"] = df["runtime_minutes"].apply(parse_runtime)
+
+# Conectar a PostgreSQL
 conn = psycopg2.connect(
     host="db",
     database="imdb",
@@ -33,16 +36,28 @@ conn = psycopg2.connect(
 )
 cur = conn.cursor()
 
-for _, row in df.iterrows():
+# Limpiar la tabla antes de insertar
+cur.execute("TRUNCATE TABLE movies RESTART IDENTITY;")
+print("Tabla 'movies' limpiada antes de la carga.")
+
+# Insertar registros
+for idx, row in df.iterrows():
+    # limpiar año: si está vacío o no es numérico, lo pasamos a None
+    year_val = row['year']
+    try:
+        year = int(year_val)
+    except:
+        year = None
+
     cur.execute("""
-        INSERT INTO movies (title, year, genre, director, runtime, rating, votes)
+        INSERT INTO movies (title, year, genre, director, runtime_minutes, rating, votes)
         VALUES (%s, %s, %s, %s, %s, %s, %s)
     """, (
         row['title'],
-        row['year'],
+        year,
         row['genre'],
         row['director'],
-        parse_runtime(row['runtime']),
+        row['runtime_minutes'],
         row['rating'],
         row['votes']
     ))
